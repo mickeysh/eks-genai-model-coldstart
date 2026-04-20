@@ -1,0 +1,91 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: vllm-server-nocache
+  namespace: genai
+  labels:
+    app: vllm-server-nocache
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: vllm-server-nocache
+  template:
+    metadata:
+      labels:
+        app: vllm-server-nocache
+    spec:
+      nodeSelector:
+        owner: "data-engineer"
+        instanceType: "gpu"
+      tolerations:
+        - key: "nvidia.com/gpu"
+          operator: "Exists"
+          effect: "NoSchedule"
+      volumes:
+      # vLLM needs to access the host's shared memory for tensor parallel inference.
+      - name: shm
+        emptyDir:
+          medium: Memory
+          sizeLimit: "2Gi"
+      containers:
+      - name: vllm-server
+        image: vllm/vllm-openai:latest
+        command: ["/bin/sh", "-c"]
+        args: [
+          "vllm serve mistralai/Ministral-3-14B-Instruct-2512 --port 8000 --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024"
+        ]
+        env:
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token-secret
+              key: token
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            cpu: "10"
+            memory: 20G
+            nvidia.com/gpu: "1"
+          requests:
+            cpu: "2"
+            memory: 6G
+            nvidia.com/gpu: "1"
+        volumeMounts:
+        - name: shm
+          mountPath: /dev/shm
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60  
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 60
+          periodSeconds: 5
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: vllm-server-nocache
+  namespace: genai
+spec:
+  ports:
+  - name: http-vllm-server-nocache
+    port: 80
+    protocol: TCP
+    targetPort: 8000
+  # The label selector should match the deployment labels & it is useful for prefix caching feature
+  selector:
+    app: vllm-server-nocache
+  sessionAffinity: None
+  type: ClusterIP

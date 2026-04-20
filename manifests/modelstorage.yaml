@@ -1,0 +1,21 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: vllm-models
+  namespace: genai
+spec:
+  accessModes:
+    - ReadWriteMany
+  storageClassName: trident-csi-nas
+  resources:
+    requests:
+      storage: 100Gi
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: hf-token-secret
+  namespace: genai
+type: Opaque
+data:
+  token: <base64-encoded-huggingface-token>
