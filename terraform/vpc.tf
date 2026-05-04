@@ -25,7 +25,7 @@ locals {
   tags = {
     Environment = "eks-genai"
     Owner       = "aws"
-    Creator     = "aws"
+    Creator     = "mshaul"
   }
 }
 

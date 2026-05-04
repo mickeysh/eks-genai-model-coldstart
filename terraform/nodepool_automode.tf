@@ -1,8 +1,8 @@
 
-resource "kubernetes_manifest" "gpu_nodepool" {
-  count = var.enable_auto_mode_node_pool && var.enable_auto_mode_gpu ? 1 : 0
-  provider   = kubernetes.cluster1
-  manifest = {
+resource "kubectl_manifest" "gpu_nodepool" {
+  count    = var.enable_auto_mode_node_pool && var.enable_auto_mode_gpu ? 1 : 0
+  provider = kubectl.cluster1
+  yaml_body = yamlencode({
     apiVersion = "karpenter.sh/v1"
     kind       = "NodePool"
     metadata = {
@@ -13,7 +13,7 @@ resource "kubernetes_manifest" "gpu_nodepool" {
       template = {
         metadata = {
           labels = {
-            owner = "data-engineer"
+            owner        = "data-engineer"
             instanceType = "gpu"
           }
         }
@@ -50,18 +50,18 @@ resource "kubernetes_manifest" "gpu_nodepool" {
         }
       }
       limits = {
-        nodes  = 4
+        nodes = 4
       }
     }
-  }
+  })
 
   depends_on = [module.eks]
 }
 
-resource "kubernetes_manifest" "neuron_nodepool" {
-  count = var.enable_auto_mode_node_pool && var.enable_auto_mode_neuron ? 1 : 0
-  provider   = kubernetes.cluster1
-  manifest = {
+resource "kubectl_manifest" "neuron_nodepool" {
+  count    = var.enable_auto_mode_node_pool && var.enable_auto_mode_neuron ? 1 : 0
+  provider = kubectl.cluster1
+  yaml_body = yamlencode({
     apiVersion = "karpenter.sh/v1"
     kind       = "NodePool"
     metadata = {
@@ -71,7 +71,7 @@ resource "kubernetes_manifest" "neuron_nodepool" {
       template = {
         metadata = {
           labels = {
-            owner = "data-engineer"
+            owner        = "data-engineer"
             instanceType = "neuron"
           }
         }
@@ -107,7 +107,7 @@ resource "kubernetes_manifest" "neuron_nodepool" {
         memory = "1000Gi"
       }
     }
-  }
+  })
 
   depends_on = [module.eks]
 }

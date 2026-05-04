@@ -30,13 +30,40 @@ spec:
       - name: shm
         emptyDir:
           medium: Memory
-          sizeLimit: "2Gi"
+          sizeLimit: "8Gi"
+      initContainers:
+      - name: model-downloader
+        image: vllm/vllm-openai:latest
+        command: ["/bin/sh", "-c"]
+        args:
+          - |
+            MODEL_ID="mistralai/Ministral-3-14B-Instruct-2512"
+            CACHE_DIR="/root/.cache/huggingface/hub"
+            MODEL_DIR="$CACHE_DIR/models--mistralai--Ministral-3-14B-Instruct-2512"
+            if [ -d "$MODEL_DIR/snapshots" ] && [ "$(ls "$MODEL_DIR/snapshots" 2>/dev/null)" ]; then
+              echo "Model already cached at $MODEL_DIR, skipping download"
+            else
+              echo "Model not found in cache, downloading..."
+              hf download "$MODEL_ID"
+            fi
+        env:
+        - name: HUGGING_FACE_HUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: hf-token-secret
+              key: token
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "1"
+        volumeMounts:
+        - mountPath: /root/.cache/huggingface
+          name: cache-volume
+          subPath: huggingface
       containers:
       - name: vllm-server
         image: vllm/vllm-openai:latest
         command: ["/bin/sh", "-c"]
         args: [
-          "vllm serve mistralai/Ministral-3-14B-Instruct-2512 --port 8000 --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024"
+          "vllm serve mistralai/Ministral-3-14B-Instruct-2512 --port 8000 --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024 --gpu-memory-utilization 0.95"
         ]
         env:
         - name: HUGGING_FACE_HUB_TOKEN
@@ -44,6 +71,10 @@ spec:
             secretKeyRef:
               name: hf-token-secret
               key: token
+        - name: TRANSFORMERS_OFFLINE
+          value: "1"
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "1"
         ports:
         - containerPort: 8000
         resources:
@@ -59,16 +90,22 @@ spec:
         - mountPath: /root/.cache/huggingface
           name: cache-volume
           subPath: huggingface
-        - mountPath: /root/.cache/vllm/torch_compile_cache
+        - mountPath: /root/.cache/vllm
           name: cache-volume
-          subPath: torch_compile_cache
+          subPath: vllm
         - name: shm
           mountPath: /dev/shm
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 120
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
@@ -76,7 +113,6 @@ spec:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60
           periodSeconds: 5
           timeoutSeconds: 5
           successThreshold: 1

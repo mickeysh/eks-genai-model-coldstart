@@ -5,6 +5,10 @@ metadata:
 provisioner: csi.trident.netapp.io
 parameters:
   backendType: "ontap-nas"
-  fsType: "ext4"
+mountOptions:
+  - hard
+  - nfsvers=4.1
+  - rsize=1048576
+  - wsize=1048576
 allowVolumeExpansion: True
 reclaimPolicy: Delete

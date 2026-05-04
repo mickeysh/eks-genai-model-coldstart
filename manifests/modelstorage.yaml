@@ -18,4 +18,4 @@ metadata:
   namespace: genai
 type: Opaque
 data:
-  token: <base64-encoded-huggingface-token>
+  token: <BASE64_ENCODED_HF_TOKEN>

@@ -23,17 +23,16 @@ spec:
           operator: "Exists"
           effect: "NoSchedule"
       volumes:
-      # vLLM needs to access the host's shared memory for tensor parallel inference.
       - name: shm
         emptyDir:
           medium: Memory
-          sizeLimit: "2Gi"
+          sizeLimit: "8Gi"
       containers:
       - name: vllm-server
         image: vllm/vllm-openai:latest
         command: ["/bin/sh", "-c"]
         args: [
-          "vllm serve mistralai/Ministral-3-14B-Instruct-2512 --port 8000 --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024"
+          "vllm serve mistralai/Ministral-3-14B-Instruct-2512 --port 8000 --trust-remote-code --enable-chunked-prefill --max_num_batched_tokens 1024 --gpu-memory-utilization 0.95"
         ]
         env:
         - name: HUGGING_FACE_HUB_TOKEN
@@ -41,6 +40,8 @@ spec:
             secretKeyRef:
               name: hf-token-secret
               key: token
+        - name: HF_HUB_ENABLE_HF_TRANSFER
+          value: "1"
         ports:
         - containerPort: 8000
         resources:
@@ -55,11 +56,17 @@ spec:
         volumeMounts:
         - name: shm
           mountPath: /dev/shm
+        startupProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          periodSeconds: 10
+          timeoutSeconds: 5
+          failureThreshold: 30
         livenessProbe:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60  
           periodSeconds: 10
           timeoutSeconds: 5
           failureThreshold: 3
@@ -67,7 +74,6 @@ spec:
           httpGet:
             path: /health
             port: 8000
-          initialDelaySeconds: 60
           periodSeconds: 5
           timeoutSeconds: 5
           successThreshold: 1
@@ -80,11 +86,10 @@ metadata:
   namespace: genai
 spec:
   ports:
-  - name: http-vllm-server-nocache
+  - name: http-vllm-server
     port: 80
     protocol: TCP
     targetPort: 8000
-  # The label selector should match the deployment labels & it is useful for prefix caching feature
   selector:
     app: vllm-server-nocache
   sessionAffinity: None
